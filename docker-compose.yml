@@ -28,3 +28,9 @@ services:
         reservations:
           cpus: '1'
           memory: 512M
+    networks:
+      - apastar
+networks:
+  apastar:
+    name: apastar
+    external: true
