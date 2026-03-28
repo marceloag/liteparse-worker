@@ -1,0 +1,26 @@
+{
+  "name": "liteparse-worker",
+  "version": "1.0.0",
+  "description": "Bun + Hono worker for PDF parsing with liteparse",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --hot src/index.ts",
+    "start": "bun run src/index.ts",
+    "deploy": "wrangler deploy",
+    "cf:dev": "wrangler dev",
+    "cf:deploy": "wrangler deploy --minify"
+  },
+  "dependencies": {
+    "hono": "^4.0.0",
+    "@llamaindex/liteparse": "^1.4.0",
+    "pdf-lib": "^1.17.1",
+    "xlsx": "^0.18.5",
+    "jspdf": "^2.5.2",
+    "jspdf-autotable": "^3.8.3",
+    "mammoth": "^1.8.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "wrangler": "^3.0.0"
+  }
+}
