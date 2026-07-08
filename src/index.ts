@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { LiteParse } from '@llamaindex/liteparse';
 import { convertImageToPdf, convertExcelToPdf, convertWordToPdf } from './converters';
+import { parseHints, mapHintsToConfig } from './strategy';
 
 const app = new Hono();
 
@@ -33,7 +34,9 @@ app.post('/parse', async (c) => {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    const parser = new LiteParse({ ocrEnabled: true });
+    const hints = parseHints(body);
+    const appliedConfig = mapHintsToConfig(hints);
+    const parser = new LiteParse(appliedConfig);
     const result = await parser.parse(buffer);
 
     return c.json({
@@ -43,7 +46,8 @@ app.post('/parse', async (c) => {
       text: result.text,
       pages: result.pages.map((p) => p.text),
       pageCount: result.pages.length,
-      metadata: { pageCount: result.pages.length, charCount: result.text.length }
+      metadata: { pageCount: result.pages.length, charCount: result.text.length },
+      appliedConfig
     });
 
   } catch (error) {
@@ -128,7 +132,9 @@ app.post('/parse-document', async (c) => {
 
     // Parse the PDF (either original or converted) with liteparse
     console.log(`Parsing ${convertedToPdf ? 'converted ' : ''}PDF with liteparse...`);
-    const parser = new LiteParse({ ocrEnabled: true });
+    const hints = parseHints(body);
+    const appliedConfig = mapHintsToConfig(hints);
+    const parser = new LiteParse(appliedConfig);
     const result = await parser.parse(buffer);
 
     return c.json({
@@ -140,7 +146,8 @@ app.post('/parse-document', async (c) => {
       text: result.text,
       pages: result.pages.map((p) => p.text),
       pageCount: result.pages.length,
-      metadata: { pageCount: result.pages.length, charCount: result.text.length }
+      metadata: { pageCount: result.pages.length, charCount: result.text.length },
+      appliedConfig
     });
 
   } catch (error) {

@@ -11,13 +11,14 @@
     "cf:deploy": "wrangler deploy --minify"
   },
   "dependencies": {
-    "hono": "^4.0.0",
     "@llamaindex/liteparse": "^1.4.0",
-    "pdf-lib": "^1.17.1",
-    "xlsx": "^0.18.5",
+    "hono": "^4.0.0",
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^3.8.3",
-    "mammoth": "^1.8.0"
+    "mammoth": "^1.8.0",
+    "pdf-lib": "^1.17.1",
+    "xlsx": "^0.18.5",
+    "zod": "^3.25.0"
   },
   "devDependencies": {
     "@types/bun": "latest",
