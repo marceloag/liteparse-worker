@@ -41,7 +41,9 @@ app.post('/parse', async (c) => {
       filename: file.name,
       size: file.size,
       text: result.text,
-      metadata: result.metadata || {}
+      pages: result.pages.map((p) => p.text),
+      pageCount: result.pages.length,
+      metadata: { pageCount: result.pages.length, charCount: result.text.length }
     });
 
   } catch (error) {
@@ -136,7 +138,9 @@ app.post('/parse-document', async (c) => {
       type: file.type,
       convertedToPdf,
       text: result.text,
-      metadata: result.metadata || {}
+      pages: result.pages.map((p) => p.text),
+      pageCount: result.pages.length,
+      metadata: { pageCount: result.pages.length, charCount: result.text.length }
     });
 
   } catch (error) {
