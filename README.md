@@ -105,12 +105,35 @@ Upload a PDF file to extract its text content.
 **Request:**
 - Method: `POST`
 - Content-Type: `multipart/form-data`
-- Body: Form data with a file field named `file`
+- Body:
+  - `file` (required) — the PDF to parse
+  - Optional parsing hints (all sent as plain multipart string fields, coerced server-side):
+    - `needsOcr` (`"true"` / `"false"`) — enable/disable OCR. Default: `true`.
+    - `language` — ISO-639-1 code (`"en"`, `"es"`). Mapped internally to Tesseract's ISO-639-3 codes for OCR. Unknown/unmapped codes fall back to `"eng"`.
+    - `complexity` (`"low"` / `"medium"` / `"high"`) — `"high"` renders pages at 300 DPI instead of the default 150, for denser/harder documents.
+    - `hasForms` (`"true"` / `"false"`) — when `true`, preserves very small text (e.g. fine print in forms) that would otherwise be filtered out.
 
 **Example with curl:**
 ```bash
 curl -X POST http://localhost:3003/parse \
   -F "file=@/path/to/your/document.pdf"
+```
+
+**Example with hints:**
+```bash
+curl -X POST http://localhost:3003/parse \
+  -F "file=@/path/to/your/document.pdf" \
+  -F "needsOcr=false" \
+  -F "language=es" \
+  -F "complexity=high" \
+  -F "hasForms=true"
+```
+
+**Example extracting just the page texts (requires `jq`):**
+```bash
+curl -s -X POST http://localhost:3003/parse \
+  -F "file=@/path/to/your/document.pdf" \
+  | jq -r '.pages[]'
 ```
 
 **Success Response:**
@@ -120,9 +143,16 @@ curl -X POST http://localhost:3003/parse \
   "filename": "document.pdf",
   "size": 12345,
   "text": "Extracted text content...",
-  "metadata": {}
+  "pages": ["Page 1 text...", "Page 2 text..."],
+  "pageCount": 2,
+  "metadata": { "pageCount": 2, "charCount": 3456 },
+  "appliedConfig": { "ocrEnabled": true, "ocrLanguage": "eng", "dpi": 150, "preserveVerySmallText": false }
 }
 ```
+
+- `pages` — array of strings, one entry per real page (in order).
+- `pageCount` — number of pages parsed.
+- `appliedConfig` — the actual `liteparse` config used for this request, reflecting whichever hints were sent (or the defaults, if none were).
 
 **Error Response:**
 ```json
@@ -149,7 +179,9 @@ Upload Office files or images to extract their text content. Files are automatic
 **Request:**
 - Method: `POST`
 - Content-Type: `multipart/form-data`
-- Body: Form data with a file field named `file`
+- Body:
+  - `file` (required) — the document to parse
+  - Same optional hints as `/parse` (`needsOcr`, `language`, `complexity`, `hasForms`) — see above
 
 **Example with curl (Word document):**
 ```bash
@@ -163,6 +195,21 @@ curl -X POST http://localhost:3003/parse-document \
   -F "file=@/path/to/your/image.png"
 ```
 
+**Example with curl (Excel):**
+```bash
+curl -X POST http://localhost:3003/parse-document \
+  -F "file=@/path/to/your/spreadsheet.xlsx"
+```
+
+**Example with hints (image, forced OCR in Spanish):**
+```bash
+curl -X POST http://localhost:3003/parse-document \
+  -F "file=@/path/to/your/scanned-form.png" \
+  -F "needsOcr=true" \
+  -F "language=es" \
+  -F "hasForms=true"
+```
+
 **Success Response:**
 ```json
 {
@@ -172,11 +219,14 @@ curl -X POST http://localhost:3003/parse-document \
   "type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "convertedToPdf": true,
   "text": "Extracted text content...",
-  "metadata": {}
+  "pages": ["Page 1 text...", "Page 2 text..."],
+  "pageCount": 2,
+  "metadata": { "pageCount": 2, "charCount": 3456 },
+  "appliedConfig": { "ocrEnabled": true, "ocrLanguage": "eng", "dpi": 150, "preserveVerySmallText": false }
 }
 ```
 
-The `convertedToPdf` field indicates whether the file was converted to PDF before parsing.
+The `convertedToPdf` field indicates whether the file was converted to PDF before parsing. `pages`, `pageCount`, and `appliedConfig` behave the same as in `/parse` above.
 
 **Error Response (Unsupported Format):**
 ```json
