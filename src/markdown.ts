@@ -2,11 +2,13 @@ import type { ParsedPage, TextItem } from '@llamaindex/liteparse';
 
 export interface MarkdownOptions {
   enableMarkdownHeadings?: boolean;
+  enableTableReconstruction?: boolean;
 }
 
 interface Line {
   text: string;
   fontSize: number;
+  items: TextItem[];
 }
 
 const HEADING_SIZE_RATIO = 1.15;
@@ -14,6 +16,10 @@ const HEADING_MAX_WORDS = 15;
 const MAX_HEADING_LEVELS = 3;
 const BULLET_RE = /^[•\-*]\s+/;
 const NUMBERED_RE = /^(\d+)[.)]\s+(.*)$/;
+
+const TABLE_COLUMN_TOLERANCE = 8; // points; column x-starts within this are considered "the same column"
+const MIN_TABLE_ROWS = 3;
+const MIN_TABLE_COLS = 2;
 
 function dominantFontSize(items: TextItem[]): number {
   const counts = new Map<number, number>();
@@ -56,9 +62,63 @@ function groupIntoLines(items: TextItem[]): Line[] {
     .map((clusterItems) => {
       const ordered = [...clusterItems].sort((a, b) => a.x - b.x);
       const text = ordered.map((i) => i.str).join(' ').replace(/\s+/g, ' ').trim();
-      return { text, fontSize: dominantFontSize(ordered) };
+      return { text, fontSize: dominantFontSize(ordered), items: ordered };
     })
     .filter((line) => line.text.length > 0);
+}
+
+function rowColumnStarts(items: TextItem[]): number[] {
+  return items.map((i) => i.x);
+}
+
+function columnsMatch(a: number[], b: number[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((x, idx) => Math.abs(x - b[idx]) <= TABLE_COLUMN_TOLERANCE);
+}
+
+interface TableRun {
+  start: number;
+  end: number; // inclusive
+}
+
+// Finds runs of >=3 consecutive lines whose item x-starts line up into the same
+// column pattern — a rough proxy for "this is a table", with no native table
+// detector available from liteparse itself.
+function detectTableRuns(lines: Line[]): TableRun[] {
+  const runs: TableRun[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    if (lines[i].items.length < MIN_TABLE_COLS) {
+      i++;
+      continue;
+    }
+    const baseColumns = rowColumnStarts(lines[i].items);
+    let j = i + 1;
+    while (j < lines.length && columnsMatch(rowColumnStarts(lines[j].items), baseColumns)) {
+      j++;
+    }
+    const runLength = j - i;
+    if (runLength >= MIN_TABLE_ROWS) {
+      runs.push({ start: i, end: j - 1 });
+      i = j;
+    } else {
+      i++;
+    }
+  }
+  return runs;
+}
+
+function escapeCell(text: string): string {
+  return text.replace(/\|/g, '\\|').trim();
+}
+
+function renderTable(lines: Line[], run: TableRun): string {
+  const rows = lines.slice(run.start, run.end + 1).map((line) => line.items.map((it) => escapeCell(it.str)));
+  const colCount = rows[0].length;
+  const header = `| ${rows[0].join(' | ')} |`;
+  const separator = `| ${Array(colCount).fill('---').join(' | ')} |`;
+  const body = rows.slice(1).map((row) => `| ${row.join(' | ')} |`);
+  return [header, separator, ...body].join('\n');
 }
 
 function computeBodySize(pages: ParsedPage[]): number {
@@ -99,6 +159,7 @@ export function reconstructMarkdownPages(pages: ParsedPage[], options: MarkdownO
   const enabled = options.enableMarkdownHeadings ?? true;
   if (!enabled) return pages.map((p) => p.text);
 
+  const enableTables = options.enableTableReconstruction ?? true;
   const bodySize = computeBodySize(pages);
   const headingLevels = computeHeadingLevels(pages, bodySize);
 
@@ -106,14 +167,31 @@ export function reconstructMarkdownPages(pages: ParsedPage[], options: MarkdownO
     const lines = groupIntoLines(page.textItems);
     if (lines.length === 0) return page.text;
 
-    return lines
-      .map((line) => {
-        if (isHeadingCandidate(line, bodySize)) {
-          const level = headingLevels.indexOf(line.fontSize);
-          if (level !== -1) return `${'#'.repeat(level + 1)} ${line.text}`;
+    const tableRuns = enableTables ? detectTableRuns(lines) : [];
+    const rendered: string[] = [];
+
+    let i = 0;
+    while (i < lines.length) {
+      const run = tableRuns.find((r) => r.start === i);
+      if (run) {
+        rendered.push(renderTable(lines, run));
+        i = run.end + 1;
+        continue;
+      }
+
+      const line = lines[i];
+      if (isHeadingCandidate(line, bodySize)) {
+        const level = headingLevels.indexOf(line.fontSize);
+        if (level !== -1) {
+          rendered.push(`${'#'.repeat(level + 1)} ${line.text}`);
+          i++;
+          continue;
         }
-        return normalizeList(line.text);
-      })
-      .join('\n');
+      }
+      rendered.push(normalizeList(line.text));
+      i++;
+    }
+
+    return rendered.join('\n');
   });
 }

@@ -39,7 +39,7 @@ app.post('/parse', async (c) => {
     const appliedConfig = mapHintsToConfig(hints);
     const parser = new LiteParse(appliedConfig);
     const result = await parser.parse(buffer);
-    const pages = reconstructMarkdownPages(result.pages, { enableMarkdownHeadings: hints.enableMarkdownHeadings });
+    const pages = reconstructMarkdownPages(result.pages, { enableMarkdownHeadings: hints.enableMarkdownHeadings, enableTableReconstruction: hints.enableTableReconstruction });
 
     return c.json({
       success: true,
@@ -138,7 +138,7 @@ app.post('/parse-document', async (c) => {
     const appliedConfig = mapHintsToConfig(hints);
     const parser = new LiteParse(appliedConfig);
     const result = await parser.parse(buffer);
-    const pages = reconstructMarkdownPages(result.pages, { enableMarkdownHeadings: hints.enableMarkdownHeadings });
+    const pages = reconstructMarkdownPages(result.pages, { enableMarkdownHeadings: hints.enableMarkdownHeadings, enableTableReconstruction: hints.enableTableReconstruction });
 
     return c.json({
       success: true,
