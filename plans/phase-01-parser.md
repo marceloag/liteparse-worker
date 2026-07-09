@@ -101,3 +101,16 @@ Not required for this round; call out as a follow-up only. `liteparse` has no na
 | Deploy                                              | `Dockerfile`, `docker-compose.yml` (no changes expected, referenced for verification) |
 | `@llamaindex/liteparse` types (read-only reference) | `node_modules/@llamaindex/liteparse/dist/src/core/types.d.ts`                         |
 | Companion change (separate repo, note only)         | `simon-mvp/workers/stages/parse.ts`                                                   |
+
+## Status
+
+- **Phase 1 — done, deployed, verified live** against `parse.apastar.me`: `/parse` and `/parse-document` both return `pages: string[]`, `pageCount`, and a real `metadata` object.
+- **Phase 2 — done, deployed, verified live**: `src/strategy.ts` added, hints (`needsOcr`, `language`, `complexity`, `hasForms`) map to `LiteParseConfig` and are echoed as `appliedConfig`; confirmed both endpoints apply hints correctly on the VPS.
+- **Phase 3 — not started.** This is the phase that actually fixes chunk quality (real heading/list structure); Phases 1–2 alone don't touch `document_chunks.section`.
+- **Phase 4 — not started** (plan already marks this as optional/deferred).
+
+## Open items discovered during Phase 1–2 rollout (not yet actioned)
+
+1. **`simon-mvp` companion change is still unmade.** `workers/stages/parse.ts` only POSTs the `file` field today — it never sends `doc.profile.needsOcr/language/complexity/hasForms`. Phase 2's hint-wiring is deployed and works when hints are sent, but in the real pipeline it silently always falls back to defaults (`ocrEnabled: true`, `ocrLanguage: "eng"`, `dpi: 150`, `preserveVerySmallText: false`) because nothing upstream sends them yet. Someone needs to add the ~5-line `formData.append(...)` change on the `simon-mvp` side before Phase 2 has any real effect in production.
+2. **`Dockerfile` installs system packages `liteparse` never calls.** Confirmed by reading `@llamaindex/liteparse`'s own dependencies (`@hyzyla/pdfium`, `sharp`, `tesseract.js` — all pure JS/WASM, no shell-out) and grepping its source for any use of `imagemagick`, `libreoffice`, `tesseract-ocr`, `poppler-utils`, or `ghostscript` — none found. These packages are leftover from the earlier "liteparser is Python" mix-up referenced in the Context section above. Not breaking anything, just build bloat; safe to remove whenever someone wants to slim the image.
+3. **No `TESSDATA_PREFIX` set, no traineddata baked into the image.** `tesseract.js` (the actual OCR engine `liteparse` uses) resolves language data in this order: explicit `tessdataPath` → `TESSDATA_PREFIX` env var → download from `cdn.jsdelivr.net` on first OCR call. Neither `Dockerfile` nor `docker-compose.yml` sets this today, so every fresh container pays a CDN round-trip on first real OCR request, and would fail outright if the VPS ever loses outbound internet access. Not yet reproduced against a real scanned/image PDF on the VPS — only confirmed the non-OCR (embedded-text) path works there. Recommended fix (deferred, not yet actioned per explicit "don't touch it now" call): download `eng.traineddata`/`spa.traineddata` at build time, set `TESSDATA_PREFIX`, and drop the unused packages from item 2 in the same pass.

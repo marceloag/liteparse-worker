@@ -11,6 +11,7 @@ export const HintsSchema = z.object({
   language: z.string().optional(),
   complexity: z.enum(['low', 'medium', 'high']).optional(),
   hasForms: boolFromString,
+  enableMarkdownHeadings: boolFromString,
 });
 
 export type Hints = z.infer<typeof HintsSchema>;
@@ -21,6 +22,7 @@ export function parseHints(body: Record<string, unknown>): Hints {
     language: body['language'],
     complexity: body['complexity'],
     hasForms: body['hasForms'],
+    enableMarkdownHeadings: body['enableMarkdownHeadings'],
   });
 }
 

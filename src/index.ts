@@ -3,6 +3,7 @@ import { cors } from 'hono/cors';
 import { LiteParse } from '@llamaindex/liteparse';
 import { convertImageToPdf, convertExcelToPdf, convertWordToPdf } from './converters';
 import { parseHints, mapHintsToConfig } from './strategy';
+import { reconstructMarkdownPages } from './markdown';
 
 const app = new Hono();
 
@@ -38,13 +39,14 @@ app.post('/parse', async (c) => {
     const appliedConfig = mapHintsToConfig(hints);
     const parser = new LiteParse(appliedConfig);
     const result = await parser.parse(buffer);
+    const pages = reconstructMarkdownPages(result.pages, { enableMarkdownHeadings: hints.enableMarkdownHeadings });
 
     return c.json({
       success: true,
       filename: file.name,
       size: file.size,
       text: result.text,
-      pages: result.pages.map((p) => p.text),
+      pages,
       pageCount: result.pages.length,
       metadata: { pageCount: result.pages.length, charCount: result.text.length },
       appliedConfig
@@ -136,6 +138,7 @@ app.post('/parse-document', async (c) => {
     const appliedConfig = mapHintsToConfig(hints);
     const parser = new LiteParse(appliedConfig);
     const result = await parser.parse(buffer);
+    const pages = reconstructMarkdownPages(result.pages, { enableMarkdownHeadings: hints.enableMarkdownHeadings });
 
     return c.json({
       success: true,
@@ -144,7 +147,7 @@ app.post('/parse-document', async (c) => {
       type: file.type,
       convertedToPdf,
       text: result.text,
-      pages: result.pages.map((p) => p.text),
+      pages,
       pageCount: result.pages.length,
       metadata: { pageCount: result.pages.length, charCount: result.text.length },
       appliedConfig
